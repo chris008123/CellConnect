@@ -36,6 +36,7 @@ export default function SundayAttendance({ onSaved }: Props) {
   const [saved, setSaved] = useState(false);
   const [subView, setSubView] = useState<SubView>("dashboard");
   const [viewingSubmission, setViewingSubmission] = useState<TeacherSubmission | null>(null);
+  const [editingSubmission, setEditingSubmission] = useState<TeacherSubmission | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [importCode, setImportCode] = useState("");
   const [importError, setImportError] = useState("");
@@ -137,8 +138,10 @@ export default function SundayAttendance({ onSaved }: Props) {
   if (subView === "teacher-form") {
     return (
       <TeacherSubmissionForm
+        editingSubmission={editingSubmission}
         onBack={() => {
           setSubView("dashboard");
+          setEditingSubmission(null);
           loadForDate(date);
         }}
       />
@@ -264,7 +267,10 @@ export default function SundayAttendance({ onSaved }: Props) {
         {/* Action buttons */}
         <div className="grid grid-cols-2 gap-2 mb-5">
           <button
-            onClick={() => setSubView("teacher-form")}
+            onClick={() => {
+              setEditingSubmission(null);
+              setSubView("teacher-form");
+            }}
             className="py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5"
           >
             <span>✏️</span> Teacher Form
@@ -339,6 +345,7 @@ export default function SundayAttendance({ onSaved }: Props) {
                 <div className="flex border-t border-cream-200">
                   <button
                     onClick={() => {
+                      setEditingSubmission(sub);
                       setSubView("teacher-form");
                     }}
                     className="flex-1 py-2.5 text-xs font-bold text-forest-dark border-r border-cream-200"
