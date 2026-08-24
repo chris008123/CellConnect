@@ -1,16 +1,21 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { TeacherSubmission, SundayRecord } from "../types";
 import {
   getSettings,
   getSundayRecords,
   saveSundayRecord,
-  getTeacherSubmissionsForDate,
-  saveTeacherSubmission,
-  deleteTeacherSubmission,
   generateId,
   todayISO,
   formatDisplayDate,
 } from "../storage";
+import {
+  fetchSubmissionsForDate,
+  upsertSubmissionRemote,
+  deleteSubmissionRemote,
+  subscribeToDateChanges,
+  unsubscribeChannel,
+} from "../remoteSubmissions";
 import {
   buildSundayMessage,
   calcSubmissionTotals,
@@ -32,6 +37,10 @@ export default function SundayAttendance({ onSaved }: Props) {
 
   const [date, setDate] = useState(todayISO());
   const [submissions, setSubmissions] = useState<TeacherSubmission[]>([]);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [submissionsError, setSubmissionsError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
   const [notes, setNotes] = useState("");
   const [saved, setSaved] = useState(false);
   const [subView, setSubView] = useState<SubView>("dashboard");
@@ -41,29 +50,63 @@ export default function SundayAttendance({ onSaved }: Props) {
   const [importCode, setImportCode] = useState("");
   const [importError, setImportError] = useState("");
   const [importSuccess, setImportSuccess] = useState("");
+  const [importSaving, setImportSaving] = useState(false);
   const [existingRecord, setExistingRecord] = useState<SundayRecord | null>(null);
 
-  // Load submissions whenever the date changes
-  useEffect(() => {
-    loadForDate(date);
-  }, [date]);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
-  function loadForDate(d: string) {
-    // Check for a saved record for this date
+  // Local record metadata (notes + "already saved" indicator) — this stays
+  // local; only the live submissions list comes from Supabase.
+  function loadRecordMeta(d: string) {
     const records = getSundayRecords();
     const rec = records.find((r) => r.date === d) ?? null;
     setExistingRecord(rec);
+    setNotes(rec?.notes ?? "");
+  }
 
-    if (rec && rec.submissions && rec.submissions.length > 0) {
-      setSubmissions(rec.submissions);
-      setNotes(rec.notes ?? "");
-    } else {
-      // Fall back to pending submissions for this date
-      const pending = getTeacherSubmissionsForDate(d);
-      setSubmissions(pending);
-      setNotes(rec?.notes ?? "");
+  async function loadSubmissions(d: string, opts?: { silent?: boolean }) {
+    if (!opts?.silent) setSubmissionsLoading(true);
+    setSubmissionsError("");
+    try {
+      const remote = await fetchSubmissionsForDate(d);
+      setSubmissions(remote);
+    } catch (err) {
+      console.error(err);
+      setSubmissionsError(
+        "Couldn't load submissions from the server. Check your connection and try Refresh."
+      );
+    } finally {
+      if (!opts?.silent) setSubmissionsLoading(false);
     }
   }
+
+  async function handleManualRefresh() {
+    setRefreshing(true);
+    await loadSubmissions(date, { silent: true });
+    setRefreshing(false);
+  }
+
+  // Load + subscribe whenever the selected date changes
+  useEffect(() => {
+    loadRecordMeta(date);
+    loadSubmissions(date);
+
+    if (channelRef.current) {
+      unsubscribeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    channelRef.current = subscribeToDateChanges(date, () => {
+      loadSubmissions(date, { silent: true });
+    });
+
+    return () => {
+      if (channelRef.current) {
+        unsubscribeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
 
   const { bsTotal } = calcSubmissionTotals(submissions);
   const grandTotal = bsTotal;
@@ -92,45 +135,56 @@ export default function SundayAttendance({ onSaved }: Props) {
     onSaved?.();
   }
 
-  function handleDeleteSubmission() {
+  async function handleDeleteSubmission() {
     if (!deleteTarget) return;
-    // Remove from local pending store
-    deleteTeacherSubmission(deleteTarget);
-    setSubmissions((prev) => prev.filter((s) => s.id !== deleteTarget));
+    const id = deleteTarget;
     setDeleteTarget(null);
+
+    const prev = submissions;
+    setSubmissions((p) => p.filter((s) => s.id !== id));
+
+    try {
+      await deleteSubmissionRemote(id);
+    } catch (err) {
+      console.error(err);
+      setSubmissions(prev);
+      setSubmissionsError("Couldn't remove that submission. Please try again.");
+    }
   }
 
-  function handleImportCode() {
+  async function handleImportCode() {
     setImportError("");
     const sub = decodeSubmission(importCode);
     if (!sub) {
       setImportError("Invalid code. Please check and try again.");
       return;
     }
-    // Force the date to match the selected date
+
     const imported: TeacherSubmission = {
       ...sub,
       id: generateId(),
       date,
       submittedAt: new Date().toISOString(),
     };
-    saveTeacherSubmission(imported);
-    setSubmissions((prev) => {
-      // Replace if same teacher on same date
-      const idx = prev.findIndex(
-        (s) => s.teacherName.toLowerCase() === imported.teacherName.toLowerCase()
+
+    setImportSaving(true);
+    try {
+      await upsertSubmissionRemote(imported);
+      setImportCode("");
+      setImportSuccess(
+        `Imported ${imported.teacherName}'s submission (${imported.attendees.length} people).`
       );
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = imported;
-        return updated;
-      }
-      return [...prev, imported];
-    });
-    setImportCode("");
-    setImportSuccess(`Imported ${imported.teacherName}'s submission (${imported.attendees.length} people).`);
-    setSubView("dashboard");
-    setTimeout(() => setImportSuccess(""), 3000);
+      setSubView("dashboard");
+      loadSubmissions(date, { silent: true });
+      setTimeout(() => setImportSuccess(""), 3000);
+    } catch (err) {
+      console.error(err);
+      setImportError(
+        "Couldn't save the imported submission to the server. Check your connection and try again."
+      );
+    } finally {
+      setImportSaving(false);
+    }
   }
 
   // ── Sub-views ──────────────────────────────────────────────────────────────
@@ -142,7 +196,8 @@ export default function SundayAttendance({ onSaved }: Props) {
         onBack={() => {
           setSubView("dashboard");
           setEditingSubmission(null);
-          loadForDate(date);
+          loadRecordMeta(date);
+          loadSubmissions(date, { silent: true });
         }}
       />
     );
@@ -199,11 +254,13 @@ export default function SundayAttendance({ onSaved }: Props) {
       <div className="flex flex-col min-h-full">
         <PageHeader
           title="Import Submission Code"
+          subtitle="Optional backup — only needed if sync fails"
           onBack={() => { setSubView("dashboard"); setImportError(""); setImportCode(""); }}
         />
         <main className="flex-1 px-4 pt-6 pb-24 max-w-lg mx-auto w-full">
           <p className="text-sm text-bark-light mb-4">
-            Ask the teacher to copy their submission code and paste it below. This lets you receive attendance from teachers on different phones.
+            Submissions normally sync automatically. Only use this if a teacher
+            couldn't connect and sent you a backup code via WhatsApp instead.
           </p>
           <label className="block text-sm font-bold text-bark-light mb-1">
             Paste Submission Code
@@ -220,10 +277,10 @@ export default function SundayAttendance({ onSaved }: Props) {
           )}
           <button
             onClick={handleImportCode}
-            disabled={!importCode.trim()}
+            disabled={!importCode.trim() || importSaving}
             className="mt-4 w-full py-4 bg-forest text-white font-bold text-base rounded-2xl shadow active:scale-95 transition-all disabled:opacity-40"
           >
-            Import Submission
+            {importSaving ? "Saving…" : "Import Submission"}
           </button>
         </main>
       </div>
@@ -246,7 +303,7 @@ export default function SundayAttendance({ onSaved }: Props) {
       <main className="flex-1 px-4 pt-5 pb-28 max-w-lg mx-auto w-full">
 
         {/* Date picker */}
-        <div className="mb-5">
+        <div className="mb-4">
           <label className="block text-sm font-bold text-bark-light mb-1" htmlFor="sec-date">
             Sunday Date
           </label>
@@ -263,6 +320,32 @@ export default function SundayAttendance({ onSaved }: Props) {
             </p>
           )}
         </div>
+
+        {/* Sync status + manual refresh */}
+        <div className="flex items-center justify-between mb-5">
+          <p className="text-xs text-bark-muted">
+            {submissionsLoading
+              ? "Loading submissions…"
+              : `Live — ${submissions.length} submission${submissions.length === 1 ? "" : "s"} for this date`}
+          </p>
+          <button
+            onClick={handleManualRefresh}
+            disabled={refreshing || submissionsLoading}
+            aria-label="Refresh submissions"
+            className="flex items-center gap-1 text-xs font-bold text-forest px-2.5 py-1.5 rounded-full border border-forest/30 hover:bg-forest-subtle active:scale-95 transition-all disabled:opacity-40"
+          >
+            <span className={refreshing ? "inline-block animate-spin" : "inline-block"}>
+              🔄
+            </span>
+            Refresh
+          </button>
+        </div>
+
+        {submissionsError && (
+          <div className="bg-danger-bg border border-red-200 rounded-xl px-4 py-3 mb-4">
+            <p className="text-sm font-bold text-danger">{submissionsError}</p>
+          </div>
+        )}
 
         {/* Action buttons */}
         <div className="grid grid-cols-2 gap-2 mb-5">
@@ -300,14 +383,20 @@ export default function SundayAttendance({ onSaved }: Props) {
         )}
 
         {/* Submissions list */}
-        {submissions.length === 0 ? (
+        {submissionsLoading && submissions.length === 0 ? (
+          <div className="bg-white border border-cream-200 rounded-2xl p-8 text-center mb-4">
+            <p className="text-3xl mb-2">⏳</p>
+            <p className="text-sm text-bark-muted">Loading submissions…</p>
+          </div>
+        ) : submissions.length === 0 ? (
           <div className="bg-white border border-cream-200 rounded-2xl p-8 text-center mb-4">
             <p className="text-3xl mb-2">📬</p>
             <p className="text-sm text-bark-muted">
               No submissions yet for {formatDisplayDate(date)}.
             </p>
             <p className="text-xs text-bark-muted mt-1">
-              Use the Teacher Form to add attendance, or import a code from a teacher.
+              Use the Teacher Form to add attendance, or wait — this updates
+              live as teachers submit.
             </p>
           </div>
         ) : (

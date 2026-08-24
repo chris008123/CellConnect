@@ -4,6 +4,7 @@ import type {
   SaturdayRecord,
   Teacher,
   TeacherSubmission,
+  Attendee,
 } from "./types";
 
 const DEFAULT_TEACHERS: Teacher[] = [
@@ -43,7 +44,7 @@ const KEYS = {
   settings: "csa_settings",
   sunday: "csa_sunday_records",
   saturday: "csa_saturday_records",
-  submissions: "csa_teacher_submissions",
+  draft: "csa_teacher_draft",
 };
 
 function get<T>(key: string, fallback: T): T {
@@ -71,35 +72,30 @@ export function saveSettings(s: AppSettings): void {
   set(KEYS.settings, s);
 }
 
-// ── Teacher submissions (device-local pending submissions) ────────────────────
+// ── Offline draft (device-local only — NOT the shared attendance source) ──────
+// Protects an in-progress teacher form from being lost if the device loses
+// connection or the tab closes before the submission reaches Supabase.
+// The secretary dashboard never reads this; it only reads from Supabase.
 
-export function getTeacherSubmissions(): TeacherSubmission[] {
-  return get<TeacherSubmission[]>(KEYS.submissions, []);
+export interface DraftSubmission {
+  teacherName: string;
+  date: string;
+  attendees: Attendee[];
 }
 
-export function getTeacherSubmissionsForDate(date: string): TeacherSubmission[] {
-  return getTeacherSubmissions().filter((s) => s.date === date);
+export function saveDraftSubmission(draft: DraftSubmission): void {
+  set(KEYS.draft, draft);
 }
 
-export function saveTeacherSubmission(sub: TeacherSubmission): void {
-  const all = getTeacherSubmissions();
-  const idx = all.findIndex((s) => s.id === sub.id);
-  if (idx >= 0) {
-    all[idx] = sub;
-  } else {
-    all.push(sub);
-  }
-  set(KEYS.submissions, all);
+export function getDraftSubmission(): DraftSubmission | null {
+  return get<DraftSubmission | null>(KEYS.draft, null);
 }
 
-export function deleteTeacherSubmission(id: string): void {
-  set(
-    KEYS.submissions,
-    getTeacherSubmissions().filter((s) => s.id !== id)
-  );
+export function clearDraftSubmission(): void {
+  localStorage.removeItem(KEYS.draft);
 }
 
-// ── Sunday records ────────────────────────────────────────────────────────────
+// ── Sunday records (secretary's saved snapshot: notes + final totals) ─────────
 
 export function getSundayRecords(): SundayRecord[] {
   return get<SundayRecord[]>(KEYS.sunday, []);
@@ -148,6 +144,8 @@ export function deleteSaturdayRecord(id: string): void {
 }
 
 // ── Backup / restore ──────────────────────────────────────────────────────────
+// Note: teacher submissions are no longer part of this local backup — they
+// live in Supabase now. This backs up settings + saved Sunday/Saturday records.
 
 export function exportAllData(): string {
   return JSON.stringify(
@@ -155,7 +153,6 @@ export function exportAllData(): string {
       settings: getSettings(),
       sunday: getSundayRecords(),
       saturday: getSaturdayRecords(),
-      submissions: getTeacherSubmissions(),
       exportedAt: new Date().toISOString(),
     },
     null,
@@ -168,7 +165,6 @@ export function importAllData(json: string): void {
   if (data.settings) set(KEYS.settings, data.settings);
   if (data.sunday) set(KEYS.sunday, data.sunday);
   if (data.saturday) set(KEYS.saturday, data.saturday);
-  if (data.submissions) set(KEYS.submissions, data.submissions);
 }
 
 export function resetAllData(): void {
@@ -196,6 +192,7 @@ export function formatDisplayDate(iso: string): string {
 }
 
 // ── Seed sample data ──────────────────────────────────────────────────────────
+// Local demo data for Sunday/Saturday history views. Does not touch Supabase.
 
 export function seedSampleDataIfNeeded(): void {
   const sunday = getSundayRecords();

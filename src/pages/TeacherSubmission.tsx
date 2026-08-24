@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Attendee, TeacherSubmission } from "../types";
 import {
   getSettings,
-  saveTeacherSubmission,
   generateId,
   todayISO,
   formatDisplayDate,
+  saveDraftSubmission,
+  getDraftSubmission,
+  clearDraftSubmission,
+  type DraftSubmission,
 } from "../storage";
+import { upsertSubmissionRemote } from "../remoteSubmissions";
 import { encodeSubmission, copyToClipboard } from "../utils";
 import PageHeader from "../components/PageHeader";
 
@@ -46,6 +50,54 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
   const [codeCopied, setCodeCopied] = useState(false);
   const [savedLocally, setSavedLocally] = useState(false);
 
+  // ── Saving state ────────────────────────────────────────────────────────────
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  // ── Offline draft (only relevant for a brand-new submission, not an edit) ───
+  const [draftAvailable, setDraftAvailable] = useState<DraftSubmission | null>(null);
+
+  useEffect(() => {
+    if (editingSubmission) return;
+    const draft = getDraftSubmission();
+    if (draft && (draft.teacherName.trim() || draft.attendees.some((a) => a.name.trim()))) {
+      setDraftAvailable(draft);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (isEditing || submitted) return;
+    const draft: DraftSubmission = {
+      teacherName: teacherName === "__custom__" ? customName : teacherName,
+      date,
+      attendees,
+    };
+    const hasContent =
+      draft.teacherName.trim() ||
+      attendees.some((a) => a.name.trim() || a.phone.trim());
+    if (hasContent) {
+      saveDraftSubmission(draft);
+    }
+  }, [teacherName, customName, date, attendees, isEditing, submitted]);
+
+  function restoreDraft() {
+    if (!draftAvailable) return;
+    const draftKnown = settings.teachers.some((t) => t.name === draftAvailable.teacherName);
+    setTeacherName(draftKnown ? draftAvailable.teacherName : "__custom__");
+    setCustomName(draftKnown ? "" : draftAvailable.teacherName);
+    setDate(draftAvailable.date || todayISO());
+    setAttendees(
+      draftAvailable.attendees.length > 0 ? draftAvailable.attendees : [emptyAttendee()]
+    );
+    setDraftAvailable(null);
+  }
+
+  function discardDraft() {
+    clearDraftSubmission();
+    setDraftAvailable(null);
+  }
+
   const finalTeacherName = teacherName === "__custom__" ? customName : teacherName;
 
   // Duplicate detection
@@ -84,8 +136,11 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
     return Object.keys(e).length === 0;
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!validate()) return;
+
+    setSaveError("");
+    setSaving(true);
 
     const sub: TeacherSubmission = {
       id: editingSubmission?.id ?? generateId(),
@@ -99,19 +154,28 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
       submittedAt: new Date().toISOString(),
     };
 
-    saveTeacherSubmission(sub);
-    setSavedLocally(true);
+    try {
+      await upsertSubmissionRemote(sub);
+      clearDraftSubmission();
+      setSavedLocally(true);
 
-    if (isEditing) {
-      // Editing an existing submission: no need for the share-code
-      // flow, just confirm and return to the dashboard.
-      onBack();
-      return;
+      if (isEditing) {
+        setSaving(false);
+        onBack();
+        return;
+      }
+
+      const code = encodeSubmission(sub);
+      setShareCode(code);
+      setSubmitted(true);
+    } catch (err) {
+      console.error(err);
+      setSaveError(
+        "Couldn't save to the server. Check your connection and try again — nothing has been lost, your entries are still here."
+      );
+    } finally {
+      setSaving(false);
     }
-
-    const code = encodeSubmission(sub);
-    setShareCode(code);
-    setSubmitted(true);
   }
 
   async function handleCopyCode() {
@@ -131,6 +195,7 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
     setSubmitted(false);
     setShareCode("");
     setSavedLocally(false);
+    setSaveError("");
   }
 
   const inputCls =
@@ -153,20 +218,21 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
           </div>
 
           {savedLocally && (
-            <p className="text-xs text-bark-muted text-center mb-4">
-              ✓ Saved on this device. The secretary can see it on the Sunday
-              dashboard.
+            <p className="text-xs text-forest font-semibold text-center mb-4">
+              ✓ Synced to the shared database — your secretary can see it right
+              away, from any phone.
             </p>
           )}
 
-          {/* Share code for cross-device submission */}
+          {/* Optional backup: manual code, in case sync ever fails */}
           <div className="bg-white border-2 border-cream-200 rounded-2xl p-4 mb-4">
             <h3 className="font-bold text-bark text-sm mb-1">
-              Sending from a different phone?
+              Optional backup code
             </h3>
             <p className="text-xs text-bark-muted mb-3">
-              Copy this code and send it to your secretary via WhatsApp so they
-              can import your attendance.
+              Your attendance already synced automatically. This code is just a
+              backup — only needed if your secretary ever asks for it because
+              of a connection issue.
             </p>
             <div className="bg-cream rounded-xl p-3 mb-3 overflow-x-auto">
               <code className="text-xs text-bark-light break-all leading-relaxed">
@@ -177,7 +243,7 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
               onClick={handleCopyCode}
               className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all"
             >
-              {codeCopied ? "✓ Copied!" : "📋 Copy Submission Code"}
+              {codeCopied ? "✓ Copied!" : "📋 Copy Backup Code"}
             </button>
           </div>
 
@@ -209,6 +275,28 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
       />
 
       <main className="flex-1 px-4 pt-5 pb-28 max-w-lg mx-auto w-full">
+        {draftAvailable && (
+          <div className="bg-warning-bg border border-yellow-300 rounded-xl px-4 py-3 mb-4">
+            <p className="text-sm font-bold text-warning mb-2">
+              📝 We found an unsaved draft from last time.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={restoreDraft}
+                className="flex-1 py-2 bg-forest text-white font-bold text-xs rounded-lg active:scale-95 transition-all"
+              >
+                Restore Draft
+              </button>
+              <button
+                onClick={discardDraft}
+                className="flex-1 py-2 border border-forest/30 text-bark-muted font-bold text-xs rounded-lg active:scale-95 transition-all"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Teacher name */}
         <div className="mb-4">
           <label className="block text-sm font-bold text-bark-light mb-1" htmlFor="teacher-select">
@@ -359,13 +447,24 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
           </button>
         </div>
 
+        {saveError && (
+          <div className="bg-danger-bg border border-red-200 rounded-xl px-4 py-3 mb-3">
+            <p className="text-sm font-bold text-danger">{saveError}</p>
+          </div>
+        )}
+
         {/* Submit */}
         <div className="mt-5">
           <button
             onClick={handleSubmit}
-            className="w-full py-4 bg-forest text-white font-bold text-base rounded-2xl shadow active:scale-95 transition-all"
+            disabled={saving}
+            className="w-full py-4 bg-forest text-white font-bold text-base rounded-2xl shadow active:scale-95 transition-all disabled:opacity-60"
           >
-            {isEditing ? "Save Changes" : `Submit Attendance (${attendees.length})`}
+            {saving
+              ? "Saving…"
+              : isEditing
+              ? "Save Changes"
+              : `Submit Attendance (${attendees.length})`}
           </button>
           <p className="text-xs text-bark-muted text-center mt-2">
             Only people who actually attended should be listed.
