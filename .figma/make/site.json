@@ -1,0 +1,10 @@
+{
+  "description": "Streamline church cell attendance and report management with easy data entry, automatic totals, and formatted WhatsApp message generation for secretaries.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

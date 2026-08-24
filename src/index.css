@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Nunito:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --color-forest: #2D6A4F;
+  --color-forest-dark: #1B4332;
+  --color-forest-light: #40916C;
+  --color-forest-subtle: #D8EDDF;
+  --color-gold: #C9A84C;
+  --color-gold-light: #F0D080;
+  --color-cream: #FDFAF5;
+  --color-cream-100: #F5EDD8;
+  --color-cream-200: #EDE0C4;
+  --color-bark: #1C2B20;
+  --color-bark-light: #4A6251;
+  --color-bark-muted: #7A9882;
+  --color-warning: #B45309;
+  --color-warning-bg: #FEF3C7;
+  --color-danger: #B91C1C;
+  --color-danger-bg: #FEE2E2;
+
+  --font-display: "Lora", Georgia, serif;
+  --font-body: "Nunito", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: #FDFAF5;
+  color: #1C2B20;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+}
+
+/* Hide scrollbars until hover/scroll */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #C9A84C transparent;
+}
+*::-webkit-scrollbar {
+  width: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #C9A84C;
+  border-radius: 2px;
+  opacity: 0;
+}
+
+/* Focus visible ring */
+:focus-visible {
+  outline: 2px solid #2D6A4F;
+  outline-offset: 2px;
+}
+
+/* WhatsApp message monospace */
+.whatsapp-preview {
+  font-family: var(--font-body);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
