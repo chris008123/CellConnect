@@ -12,19 +12,34 @@ import PageHeader from "../components/PageHeader";
 
 interface Props {
   onBack: () => void;
+  editingSubmission?: TeacherSubmission | null;
 }
 
 function emptyAttendee(): Attendee {
   return { id: generateId(), name: "", phone: "" };
 }
 
-export default function TeacherSubmission({ onBack }: Props) {
+export default function TeacherSubmission({ onBack, editingSubmission }: Props) {
   const settings = getSettings();
+  const isEditing = !!editingSubmission;
 
-  const [teacherName, setTeacherName] = useState("");
-  const [customName, setCustomName] = useState("");
-  const [date, setDate] = useState(todayISO());
-  const [attendees, setAttendees] = useState<Attendee[]>([emptyAttendee()]);
+  const knownTeacher =
+    !!editingSubmission &&
+    settings.teachers.some((t) => t.name === editingSubmission.teacherName);
+
+  const [teacherName, setTeacherName] = useState(() => {
+    if (!editingSubmission) return "";
+    return knownTeacher ? editingSubmission.teacherName : "__custom__";
+  });
+  const [customName, setCustomName] = useState(() =>
+    editingSubmission && !knownTeacher ? editingSubmission.teacherName : ""
+  );
+  const [date, setDate] = useState(() => editingSubmission?.date ?? todayISO());
+  const [attendees, setAttendees] = useState<Attendee[]>(() =>
+    editingSubmission && editingSubmission.attendees.length > 0
+      ? editingSubmission.attendees.map((a) => ({ ...a }))
+      : [emptyAttendee()]
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [shareCode, setShareCode] = useState("");
@@ -73,7 +88,7 @@ export default function TeacherSubmission({ onBack }: Props) {
     if (!validate()) return;
 
     const sub: TeacherSubmission = {
-      id: generateId(),
+      id: editingSubmission?.id ?? generateId(),
       teacherName: finalTeacherName.trim(),
       date,
       attendees: attendees.map((a) => ({
@@ -86,6 +101,13 @@ export default function TeacherSubmission({ onBack }: Props) {
 
     saveTeacherSubmission(sub);
     setSavedLocally(true);
+
+    if (isEditing) {
+      // Editing an existing submission: no need for the share-code
+      // flow, just confirm and return to the dashboard.
+      onBack();
+      return;
+    }
 
     const code = encodeSubmission(sub);
     setShareCode(code);
@@ -179,8 +201,10 @@ export default function TeacherSubmission({ onBack }: Props) {
   return (
     <div className="flex flex-col min-h-full">
       <PageHeader
-        title="Teacher Attendance Form"
-        subtitle="Record who attended your class"
+        title={isEditing ? "Edit Attendance" : "Teacher Attendance Form"}
+        subtitle={
+          isEditing ? "Update who attended your class" : "Record who attended your class"
+        }
         onBack={onBack}
       />
 
@@ -341,7 +365,7 @@ export default function TeacherSubmission({ onBack }: Props) {
             onClick={handleSubmit}
             className="w-full py-4 bg-forest text-white font-bold text-base rounded-2xl shadow active:scale-95 transition-all"
           >
-            Submit Attendance ({attendees.length})
+            {isEditing ? "Save Changes" : `Submit Attendance (${attendees.length})`}
           </button>
           <p className="text-xs text-bark-muted text-center mt-2">
             Only people who actually attended should be listed.
