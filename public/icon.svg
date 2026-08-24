@@ -1,6 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="36" fill="#2D6A4F"/>
-  <rect x="88" y="30" width="16" height="132" rx="4" fill="#FDFAF5"/>
-  <rect x="50" y="64" width="92" height="16" rx="4" fill="#FDFAF5"/>
-  <circle cx="96" cy="96" r="12" fill="#C9A84C"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">CellConnect</title>
+  <desc id="desc">A church community icon with a cross and three people.</desc>
+  <defs>
+    <linearGradient id="bg" x1="72" y1="48" x2="448" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2B7357"/>
+      <stop offset="1" stop-color="#174536"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="181" fill="none" stroke="#F4C96B" stroke-width="10" opacity=".82"/>
+  <path d="M256 112v126M193 175h126" fill="none" stroke="#FFFDF8" stroke-width="29" stroke-linecap="round"/>
+  <circle cx="182" cy="284" r="27" fill="#FFFDF8"/>
+  <circle cx="256" cy="271" r="32" fill="#F4C96B"/>
+  <circle cx="330" cy="284" r="27" fill="#FFFDF8"/>
+  <path d="M128 386c6-42 29-68 54-68s48 26 54 68M188 390c7-55 33-88 68-88s61 33 68 88M276 386c6-42 29-68 54-68s48 26 54 68" fill="none" stroke="#FFFDF8" stroke-width="23" stroke-linecap="round"/>
 </svg>
