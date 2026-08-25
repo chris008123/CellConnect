@@ -20,10 +20,13 @@ import {
   buildSundayMessage,
   calcSubmissionTotals,
   decodeSubmission,
+  normalizeTeacherName,
 } from "../utils";
 import PageHeader from "../components/PageHeader";
 import MessagePreview from "../components/MessagePreview";
 import ConfirmDialog from "../components/ConfirmDialog";
+import StatusBanner from "../components/StatusBanner";
+import LoadingScreen from "../components/LoadingScreen";
 import TeacherSubmissionForm from "./TeacherSubmission";
 
 interface Props {
@@ -273,7 +276,7 @@ export default function SundayAttendance({ onSaved }: Props) {
             className="w-full border-2 border-cream-200 rounded-xl px-4 py-3 text-bark text-sm font-mono focus:border-forest focus:outline-none bg-white resize-none"
           />
           {importError && (
-            <p className="text-sm text-danger mt-2">{importError}</p>
+            <StatusBanner variant="error" message={importError} className="mt-2" />
           )}
           <button
             onClick={handleImportCode}
@@ -292,7 +295,7 @@ export default function SundayAttendance({ onSaved }: Props) {
   const missingTeachers = settings.teachers.filter(
     (t) =>
       !submissions.some(
-        (s) => s.teacherName.toLowerCase() === t.name.toLowerCase()
+        (s) => normalizeTeacherName(s.teacherName) === normalizeTeacherName(t.name)
       )
   );
 
@@ -342,9 +345,7 @@ export default function SundayAttendance({ onSaved }: Props) {
         </div>
 
         {submissionsError && (
-          <div className="bg-danger-bg border border-red-200 rounded-xl px-4 py-3 mb-4">
-            <p className="text-sm font-bold text-danger">{submissionsError}</p>
-          </div>
+          <StatusBanner variant="error" message={submissionsError} className="mb-4" />
         )}
 
         {/* Action buttons */}
@@ -367,27 +368,21 @@ export default function SundayAttendance({ onSaved }: Props) {
         </div>
 
         {importSuccess && (
-          <div className="bg-forest-subtle border border-forest/20 rounded-xl px-4 py-3 mb-4">
-            <p className="text-sm text-forest font-bold">✓ {importSuccess}</p>
-          </div>
+          <StatusBanner variant="success" message={`✓ ${importSuccess}`} className="mb-4" />
         )}
 
         {/* Missing teachers warning */}
         {missingTeachers.length > 0 && (
-          <div className="bg-warning-bg border border-yellow-300 rounded-xl px-4 py-3 mb-4">
-            <p className="text-sm font-bold text-warning">
-              ⚠️ Awaiting submissions from:{" "}
-              {missingTeachers.map((t) => t.name).join(", ")}
-            </p>
-          </div>
+          <StatusBanner
+            variant="warning"
+            message={`⚠️ Awaiting submissions from: ${missingTeachers.map((t) => t.name).join(", ")}`}
+            className="mb-4"
+          />
         )}
 
         {/* Submissions list */}
         {submissionsLoading && submissions.length === 0 ? (
-          <div className="bg-white border border-cream-200 rounded-2xl p-8 text-center mb-4">
-            <p className="text-3xl mb-2">⏳</p>
-            <p className="text-sm text-bark-muted">Loading submissions…</p>
-          </div>
+          <LoadingScreen message="Loading submissions…" />
         ) : submissions.length === 0 ? (
           <div className="bg-white border border-cream-200 rounded-2xl p-8 text-center mb-4">
             <p className="text-3xl mb-2">📬</p>

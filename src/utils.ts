@@ -93,6 +93,10 @@ export function validateOffering(val: string): boolean {
   return /^\d+(\.\d{0,2})?$/.test(val);
 }
 
+export function normalizeTeacherName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);

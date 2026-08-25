@@ -11,8 +11,9 @@ import {
   type DraftSubmission,
 } from "../storage";
 import { upsertSubmissionRemote } from "../remoteSubmissions";
-import { encodeSubmission, copyToClipboard } from "../utils";
+import { encodeSubmission, copyToClipboard, normalizeTeacherName } from "../utils";
 import PageHeader from "../components/PageHeader";
+import StatusBanner from "../components/StatusBanner";
 
 interface Props {
   onBack: () => void;
@@ -29,11 +30,17 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
 
   const knownTeacher =
     !!editingSubmission &&
-    settings.teachers.some((t) => t.name === editingSubmission.teacherName);
+    settings.teachers.some(
+      (t) => normalizeTeacherName(t.name) === normalizeTeacherName(editingSubmission.teacherName)
+    );
 
   const [teacherName, setTeacherName] = useState(() => {
     if (!editingSubmission) return "";
-    return knownTeacher ? editingSubmission.teacherName : "__custom__";
+    return knownTeacher
+      ? settings.teachers.find(
+          (t) => normalizeTeacherName(t.name) === normalizeTeacherName(editingSubmission.teacherName)
+        )!.name
+      : "__custom__";
   });
   const [customName, setCustomName] = useState(() =>
     editingSubmission && !knownTeacher ? editingSubmission.teacherName : ""
@@ -83,9 +90,11 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
 
   function restoreDraft() {
     if (!draftAvailable) return;
-    const draftKnown = settings.teachers.some((t) => t.name === draftAvailable.teacherName);
-    setTeacherName(draftKnown ? draftAvailable.teacherName : "__custom__");
-    setCustomName(draftKnown ? "" : draftAvailable.teacherName);
+    const matched = settings.teachers.find(
+      (t) => normalizeTeacherName(t.name) === normalizeTeacherName(draftAvailable.teacherName)
+    );
+    setTeacherName(matched ? matched.name : "__custom__");
+    setCustomName(matched ? "" : draftAvailable.teacherName);
     setDate(draftAvailable.date || todayISO());
     setAttendees(
       draftAvailable.attendees.length > 0 ? draftAvailable.attendees : [emptyAttendee()]
@@ -100,7 +109,7 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
 
   const finalTeacherName = teacherName === "__custom__" ? customName : teacherName;
 
-  // Duplicate detection
+  // Duplicate detection (attendee names/phones within this submission)
   const nameCounts: Record<string, number> = {};
   const phoneCounts: Record<string, number> = {};
   attendees.forEach((a) => {
@@ -234,7 +243,7 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
               backup — only needed if your secretary ever asks for it because
               of a connection issue.
             </p>
-            
+
             <button
               onClick={handleCopyCode}
               className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all"
@@ -272,10 +281,11 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
 
       <main className="flex-1 px-4 pt-5 pb-28 max-w-lg mx-auto w-full">
         {draftAvailable && (
-          <div className="bg-warning-bg border border-yellow-300 rounded-xl px-4 py-3 mb-4">
-            <p className="text-sm font-bold text-warning mb-2">
-              📝 We found an unsaved draft from last time.
-            </p>
+          <StatusBanner
+            variant="warning"
+            message="📝 We found an unsaved draft from last time."
+            className="mb-4"
+          >
             <div className="flex gap-2">
               <button
                 onClick={restoreDraft}
@@ -290,7 +300,7 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
                 Discard
               </button>
             </div>
-          </div>
+          </StatusBanner>
         )}
 
         {/* Teacher name */}
@@ -444,9 +454,7 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
         </div>
 
         {saveError && (
-          <div className="bg-danger-bg border border-red-200 rounded-xl px-4 py-3 mb-3">
-            <p className="text-sm font-bold text-danger">{saveError}</p>
-          </div>
+          <StatusBanner variant="error" message={saveError} className="mb-3" />
         )}
 
         {/* Submit */}
