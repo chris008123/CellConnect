@@ -38,6 +38,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   saturdayTemplate: DEFAULT_SATURDAY_TEMPLATE,
   defaultTime: "4:30",
   defaultVenue: "Jubilee Mall",
+  excelSheetUrl: "",
 };
 
 const KEYS = {

@@ -213,34 +213,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Message templates */}
-        <div className={sectionCls}>
-          <div className={sectionHeaderCls}>Saturday Report Template</div>
-          <div className={rowCls}>
-            <label className={labelCls} htmlFor="sat-tpl">
-              Message Format
-            </label>
-            <p className="text-xs text-bark-muted mb-2">
-              Placeholders: {"{date}"} {"{time}"} {"{venue}"} {"{attendance}"} {"{offering}"} {"{topic}"}
-            </p>
-            <textarea
-              id="sat-tpl"
-              value={settings.saturdayTemplate}
-              onChange={(e) => update({ saturdayTemplate: e.target.value })}
-              rows={8}
-              className="w-full border-2 border-cream-200 rounded-xl px-3 py-2 text-bark text-sm font-mono focus:border-forest focus:outline-none bg-white resize-none"
-            />
-          </div>
-          <div className="px-4 py-3">
-            <button
-              onClick={resetTemplates}
-              className="text-xs text-bark-muted underline"
-            >
-              Reset templates to defaults
-            </button>
-          </div>
-        </div>
-
+        
         {/* Data management */}
         <div className={sectionCls}>
           <div className={sectionHeaderCls}>Data & Backup</div>
@@ -288,6 +261,46 @@ export default function Settings() {
             </p>
           </div>
         </div>
+
+
+
+        {/* Original Excel database */}
+        <div className={sectionCls}>
+          <div className={sectionHeaderCls}>Original Excel Database</div>
+          <div className={rowCls}>
+            <label className={labelCls} htmlFor="excel-url">
+              Spreadsheet Link
+            </label>
+            <p className="text-xs text-bark-muted mb-2">
+              Paste the link to your Google Sheets, OneDrive, or Dropbox file.
+            </p>
+            <input
+              id="excel-url"
+              type="url"
+              value={settings.excelSheetUrl}
+              onChange={(e) => update({ excelSheetUrl: e.target.value })}
+              placeholder="https://docs.google.com/spreadsheets/..."
+              className={inputCls}
+            />
+          </div>
+          <div className={rowCls}>
+            <button
+              onClick={() => window.open(settings.excelSheetUrl, "_blank", "noopener,noreferrer")}
+              disabled={!settings.excelSheetUrl.trim()}
+              className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all disabled:opacity-40"
+            >
+              📊 Open Excel Database
+            </button>
+            {!settings.excelSheetUrl.trim() && (
+              <p className="mt-1 text-xs text-bark-muted">
+                Add a link above to enable this button.
+              </p>
+            )}
+          </div>
+        </div>
+
+
+
 
         {/* Save button */}
         <button
