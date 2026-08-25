@@ -12,10 +12,15 @@ import {
 import PageHeader from "../components/PageHeader";
 import ConfirmDialog from "../components/ConfirmDialog";
 
-const EXCEL_SHEET_URL ="https://docs.google.com/spreadsheets/d/1cpJLFUS__V3ZR6h80k6-tfeODL9VgnCd/edit?usp=sharing&rtpof=true&sd=true";
+const EXCEL_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/1cpJLFUS__V3ZR6h80k6-tfeODL9VgnCd/edit?usp=sharing&rtpof=true&sd=true";
 
 export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>(() => getSettings());
+  const [unlocked, setUnlocked] = useState(() => !getSettings().settingsPin?.trim());
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+
   const [saved, setSaved] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [importError, setImportError] = useState("");
@@ -25,6 +30,17 @@ export default function Settings() {
 
   function update(patch: Partial<AppSettings>) {
     setSettings((s) => ({ ...s, ...patch }));
+  }
+
+  function handleUnlock() {
+    if (pinInput.trim() && pinInput.trim() === settings.settingsPin.trim()) {
+      setUnlocked(true);
+      setPinInput("");
+      setPinError("");
+    } else {
+      setPinError("Incorrect PIN. Try again.");
+      setPinInput("");
+    }
   }
 
   function handleSave() {
@@ -108,6 +124,41 @@ export default function Settings() {
   const inputCls = "w-full border-2 border-cream-200 rounded-xl px-4 py-3 text-bark text-base font-semibold focus:border-forest focus:outline-none bg-white";
   const labelCls = "block text-sm font-bold text-bark-light mb-1";
   const rowCls = "px-4 py-3 border-b border-cream-200 last:border-0";
+
+  // ── PIN lock screen ────────────────────────────────────────────────────────
+  if (!unlocked) {
+    return (
+      <div className="flex flex-col min-h-full">
+        <PageHeader title="Settings" subtitle="Enter PIN to continue" />
+        <main className="flex-1 px-4 pt-10 pb-24 max-w-lg mx-auto w-full flex flex-col items-center">
+          <div className="text-4xl mb-4">🔒</div>
+          <p className="text-sm text-bark-light text-center mb-5">
+            This section is locked. Enter the settings PIN to continue.
+          </p>
+          <input
+            type="password"
+            inputMode="numeric"
+            value={pinInput}
+            onChange={(e) => { setPinInput(e.target.value); setPinError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
+            placeholder="Enter PIN"
+            autoFocus
+            className="w-full border-2 border-cream-200 rounded-xl px-4 py-3 text-bark text-base font-semibold text-center tracking-widest focus:border-forest focus:outline-none bg-white mb-3"
+          />
+          {pinError && (
+            <p className="text-xs text-danger mb-3">{pinError}</p>
+          )}
+          <button
+            onClick={handleUnlock}
+            disabled={!pinInput.trim()}
+            className="w-full py-4 bg-forest text-white font-bold text-base rounded-2xl shadow active:scale-95 transition-all disabled:opacity-40"
+          >
+            Unlock
+          </button>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-full">
@@ -215,7 +266,58 @@ export default function Settings() {
           </div>
         </div>
 
-        
+        {/* Original Excel database */}
+        <div className={sectionCls}>
+          <div className={sectionHeaderCls}>Original Excel Database</div>
+          <div className={rowCls}>
+            <p className="text-xs text-bark-muted mb-3">
+              Opens the cell's original attendance spreadsheet in a new tab.
+            </p>
+            <button
+              onClick={() => window.open(EXCEL_SHEET_URL, "_blank", "noopener,noreferrer")}
+              className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all"
+            >
+              📊 Open Excel Database
+            </button>
+          </div>
+        </div>
+
+        {/* Security */}
+        <div className={sectionCls}>
+          <div className={sectionHeaderCls}>Security</div>
+          <div className={rowCls}>
+            <label className={labelCls} htmlFor="settings-pin">
+              Settings PIN
+            </label>
+            <p className="text-xs text-bark-muted mb-2">
+              {settings.settingsPin.trim()
+                ? "A PIN is currently required to open Settings."
+                : "No PIN set — anyone can open Settings. Set one below to lock this page."}
+            </p>
+            <input
+              id="settings-pin"
+              type="password"
+              inputMode="numeric"
+              value={settings.settingsPin}
+              onChange={(e) => update({ settingsPin: e.target.value })}
+              placeholder="e.g. 4821"
+              className={inputCls}
+            />
+            <p className="text-xs text-bark-muted mt-1">
+              Leave blank and save to remove the PIN entirely.
+            </p>
+          </div>
+          <div className={rowCls}>
+            <button
+              onClick={() => setUnlocked(false)}
+              disabled={!settings.settingsPin.trim()}
+              className="w-full py-3 border-2 border-forest text-forest font-bold text-sm rounded-xl active:scale-95 transition-all disabled:opacity-40"
+            >
+              🔒 Lock Now
+            </button>
+          </div>
+        </div>
+
         {/* Data management */}
         <div className={sectionCls}>
           <div className={sectionHeaderCls}>Data & Backup</div>
@@ -263,24 +365,6 @@ export default function Settings() {
             </p>
           </div>
         </div>
-
-
-        {/* Original Excel database */}
-        <div className={sectionCls}>
-          <div className={sectionHeaderCls}>Original Excel Database</div>
-          <div className={rowCls}>
-            <p className="text-xs text-bark-muted mb-3">
-              Opens the cell's original attendance spreadsheet in a new tab.
-            </p>
-            <button
-              onClick={() => window.open(EXCEL_SHEET_URL, "_blank", "noopener,noreferrer")}
-              className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all"
-            >
-              📊 Open Excel Database
-            </button>
-          </div>
-        </div>
-
 
         {/* Save button */}
         <button

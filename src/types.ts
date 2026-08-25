@@ -49,6 +49,7 @@ export interface AppSettings {
   saturdayTemplate: string;
   defaultTime: string;
   defaultVenue: string;
+  settingsPin: string;
 }
 
 export type Page =
