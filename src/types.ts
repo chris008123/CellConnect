@@ -49,7 +49,6 @@ export interface AppSettings {
   saturdayTemplate: string;
   defaultTime: string;
   defaultVenue: string;
-  excelSheetUrl: string;
 }
 
 export type Page =

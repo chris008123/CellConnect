@@ -12,6 +12,8 @@ import {
 import PageHeader from "../components/PageHeader";
 import ConfirmDialog from "../components/ConfirmDialog";
 
+const EXCEL_SHEET_URL ="https://docs.google.com/spreadsheets/d/1cpJLFUS__V3ZR6h80k6-tfeODL9VgnCd/edit?usp=sharing&rtpof=true&sd=true";
+
 export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>(() => getSettings());
   const [saved, setSaved] = useState(false);
@@ -263,43 +265,21 @@ export default function Settings() {
         </div>
 
 
-
         {/* Original Excel database */}
         <div className={sectionCls}>
           <div className={sectionHeaderCls}>Original Excel Database</div>
           <div className={rowCls}>
-            <label className={labelCls} htmlFor="excel-url">
-              Spreadsheet Link
-            </label>
-            <p className="text-xs text-bark-muted mb-2">
-              Paste the link to your Google Sheets, OneDrive, or Dropbox file.
+            <p className="text-xs text-bark-muted mb-3">
+              Opens the cell's original attendance spreadsheet in a new tab.
             </p>
-            <input
-              id="excel-url"
-              type="url"
-              value={settings.excelSheetUrl}
-              onChange={(e) => update({ excelSheetUrl: e.target.value })}
-              placeholder="https://docs.google.com/spreadsheets/..."
-              className={inputCls}
-            />
-          </div>
-          <div className={rowCls}>
             <button
-              onClick={() => window.open(settings.excelSheetUrl, "_blank", "noopener,noreferrer")}
-              disabled={!settings.excelSheetUrl.trim()}
-              className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all disabled:opacity-40"
+              onClick={() => window.open(EXCEL_SHEET_URL, "_blank", "noopener,noreferrer")}
+              className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all"
             >
               📊 Open Excel Database
             </button>
-            {!settings.excelSheetUrl.trim() && (
-              <p className="mt-1 text-xs text-bark-muted">
-                Add a link above to enable this button.
-              </p>
-            )}
           </div>
         </div>
-
-
 
 
         {/* Save button */}
