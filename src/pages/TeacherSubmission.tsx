@@ -234,11 +234,7 @@ export default function TeacherSubmission({ onBack, editingSubmission }: Props) 
               backup — only needed if your secretary ever asks for it because
               of a connection issue.
             </p>
-            <div className="bg-cream rounded-xl p-3 mb-3 overflow-x-auto">
-              <code className="text-xs text-bark-light break-all leading-relaxed">
-                {shareCode}
-              </code>
-            </div>
+            
             <button
               onClick={handleCopyCode}
               className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all"
