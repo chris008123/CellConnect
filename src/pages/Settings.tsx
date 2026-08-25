@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { AppSettings, Teacher } from "../types";
 import {
   getSettings,
@@ -9,18 +9,17 @@ import {
   generateId,
   DEFAULT_SATURDAY_TEMPLATE,
 } from "../storage";
+import { fetchSettingsPin, updateSettingsPinRemote } from "../remoteConfig";
 import PageHeader from "../components/PageHeader";
 import ConfirmDialog from "../components/ConfirmDialog";
 
 const EXCEL_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1cpJLFUS__V3ZR6h80k6-tfeODL9VgnCd/edit?usp=sharing&rtpof=true&sd=true";
 
+type PinCheckStatus = "checking" | "ready" | "error";
+
 export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>(() => getSettings());
-  const [unlocked, setUnlocked] = useState(() => !getSettings().settingsPin?.trim());
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
-
   const [saved, setSaved] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [importError, setImportError] = useState("");
@@ -28,18 +27,64 @@ export default function Settings() {
   const [newTeacher, setNewTeacher] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // ── Shared PIN lock (Supabase-backed, same on every device) ────────────────
+  const [pinCheckStatus, setPinCheckStatus] = useState<PinCheckStatus>("checking");
+  const [remotePin, setRemotePin] = useState("");
+  const [unlocked, setUnlocked] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+
+  const [pinDraft, setPinDraft] = useState("");
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pinSaveError, setPinSaveError] = useState("");
+  const [pinSaved, setPinSaved] = useState(false);
+
+  useEffect(() => {
+    loadPin();
+  }, []);
+
+  async function loadPin() {
+    setPinCheckStatus("checking");
+    try {
+      const pin = await fetchSettingsPin();
+      setRemotePin(pin);
+      setPinDraft(pin);
+      setUnlocked(!pin.trim());
+      setPinCheckStatus("ready");
+    } catch (err) {
+      console.error(err);
+      setPinCheckStatus("error");
+    }
+  }
+
   function update(patch: Partial<AppSettings>) {
     setSettings((s) => ({ ...s, ...patch }));
   }
 
   function handleUnlock() {
-    if (pinInput.trim() && pinInput.trim() === settings.settingsPin.trim()) {
+    if (pinInput.trim() && pinInput.trim() === remotePin.trim()) {
       setUnlocked(true);
       setPinInput("");
       setPinError("");
     } else {
       setPinError("Incorrect PIN. Try again.");
       setPinInput("");
+    }
+  }
+
+  async function handleSavePin() {
+    setPinSaving(true);
+    setPinSaveError("");
+    try {
+      await updateSettingsPinRemote(pinDraft.trim());
+      setRemotePin(pinDraft.trim());
+      setPinSaved(true);
+      setTimeout(() => setPinSaved(false), 2000);
+    } catch (err) {
+      console.error(err);
+      setPinSaveError("Couldn't save the PIN. Check your connection and try again.");
+    } finally {
+      setPinSaving(false);
     }
   }
 
@@ -113,17 +158,45 @@ export default function Settings() {
     setShowReset(false);
   }
 
-  function resetTemplates() {
-    update({
-      saturdayTemplate: DEFAULT_SATURDAY_TEMPLATE,
-    });
-  }
-
   const sectionCls = "mb-6 bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden";
   const sectionHeaderCls = "px-4 py-3 bg-forest-subtle border-b border-cream-200 font-bold text-forest-dark text-sm";
   const inputCls = "w-full border-2 border-cream-200 rounded-xl px-4 py-3 text-bark text-base font-semibold focus:border-forest focus:outline-none bg-white";
   const labelCls = "block text-sm font-bold text-bark-light mb-1";
   const rowCls = "px-4 py-3 border-b border-cream-200 last:border-0";
+
+  // ── Checking remote PIN ──────────────────────────────────────────────────────
+  if (pinCheckStatus === "checking") {
+    return (
+      <div className="flex flex-col min-h-full">
+        <PageHeader title="Settings" />
+        <main className="flex-1 px-4 pt-10 pb-24 max-w-lg mx-auto w-full flex flex-col items-center">
+          <div className="text-3xl mb-3">⏳</div>
+          <p className="text-sm text-bark-muted">Checking access…</p>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Couldn't reach Supabase to check the PIN ─────────────────────────────────
+  if (pinCheckStatus === "error") {
+    return (
+      <div className="flex flex-col min-h-full">
+        <PageHeader title="Settings" />
+        <main className="flex-1 px-4 pt-10 pb-24 max-w-lg mx-auto w-full flex flex-col items-center">
+          <div className="text-4xl mb-4">⚠️</div>
+          <p className="text-sm text-bark-light text-center mb-5">
+            Couldn't check the settings lock. Check your connection and try again.
+          </p>
+          <button
+            onClick={loadPin}
+            className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all"
+          >
+            Retry
+          </button>
+        </main>
+      </div>
+    );
+  }
 
   // ── PIN lock screen ────────────────────────────────────────────────────────
   if (!unlocked) {
@@ -290,27 +363,37 @@ export default function Settings() {
               Settings PIN
             </label>
             <p className="text-xs text-bark-muted mb-2">
-              {settings.settingsPin.trim()
-                ? "A PIN is currently required to open Settings."
-                : "No PIN set — anyone can open Settings. Set one below to lock this page."}
+              {remotePin.trim()
+                ? "A PIN is currently required to open Settings, on every device."
+                : "No PIN set — anyone can open Settings. Set one below to lock this page everywhere."}
             </p>
             <input
               id="settings-pin"
               type="password"
               inputMode="numeric"
-              value={settings.settingsPin}
-              onChange={(e) => update({ settingsPin: e.target.value })}
+              value={pinDraft}
+              onChange={(e) => { setPinDraft(e.target.value); setPinSaveError(""); }}
               placeholder="e.g. 4821"
               className={inputCls}
             />
-            <p className="text-xs text-bark-muted mt-1">
+            <p className="text-xs text-bark-muted mt-1 mb-3">
               Leave blank and save to remove the PIN entirely.
             </p>
+            {pinSaveError && (
+              <p className="text-xs text-danger mb-2">{pinSaveError}</p>
+            )}
+            <button
+              onClick={handleSavePin}
+              disabled={pinSaving}
+              className="w-full py-3 bg-forest-dark text-white font-bold text-sm rounded-xl active:scale-95 transition-all disabled:opacity-60"
+            >
+              {pinSaving ? "Saving…" : pinSaved ? "✓ PIN Saved!" : "Save PIN"}
+            </button>
           </div>
           <div className={rowCls}>
             <button
               onClick={() => setUnlocked(false)}
-              disabled={!settings.settingsPin.trim()}
+              disabled={!remotePin.trim()}
               className="w-full py-3 border-2 border-forest text-forest font-bold text-sm rounded-xl active:scale-95 transition-all disabled:opacity-40"
             >
               🔒 Lock Now
