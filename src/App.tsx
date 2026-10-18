@@ -7,11 +7,12 @@ import SundayAttendance from "./pages/SundayAttendance";
 import SaturdayReport from "./pages/SaturdayReport";
 import History from "./pages/History";
 import Settings from "./pages/Settings";
+import RegisterMember from "./pages/RegisterMember";
 
 seedSampleDataIfNeeded();
 
 // Pages that show the bottom nav
-const NAV_PAGES: Page[] = ["home", "sunday", "saturday", "history", "settings"];
+const NAV_PAGES: Page[] = ["home", "sunday", "saturday", "register", "history", "settings"];
 
 export default function App() {
   const [page, setPage] = useState<Page>("home");
@@ -58,6 +59,7 @@ export default function App() {
             onSaved={handleSaved}
           />
         )}
+        {page === "register" && <RegisterMember />}
         {page === "history" && (
           <History
             key={refreshKey}

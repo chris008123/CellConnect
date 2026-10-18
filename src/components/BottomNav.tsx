@@ -9,6 +9,7 @@ const items: { page: Page; label: string; icon: string }[] = [
   { page: "home", label: "Home", icon: "🏠" },
   { page: "sunday", label: "Sunday", icon: "📋" },
   { page: "saturday", label: "Saturday", icon: "📝" },
+  { page: "register", label: "Register", icon: "➕" },
   { page: "history", label: "History", icon: "🗂" },
   { page: "settings", label: "Settings", icon: "⚙️" },
 ];

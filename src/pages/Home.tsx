@@ -72,6 +72,21 @@ export default function Home({ onNavigate }: Props) {
           </button>
         </div>
 
+        <button
+          onClick={() => onNavigate("register")}
+          className="mt-3 w-full bg-white border-2 border-forest rounded-2xl p-4 shadow-sm active:scale-95 transition-transform text-left flex items-center gap-4"
+        >
+          <span className="text-2xl">➕</span>
+          <div>
+            <div className="font-bold text-forest-dark text-base leading-tight">
+              Register Member
+            </div>
+            <div className="text-xs text-bark-muted mt-0.5">
+              Add a new member to your cell
+            </div>
+          </div>
+        </button>
+
         {/* Secondary actions */}
         <div className="mt-4 grid grid-cols-2 gap-3">
           <button

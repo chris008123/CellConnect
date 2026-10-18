@@ -57,6 +57,20 @@ export type Page =
   | "saturday"
   | "history"
   | "settings"
+  | "register"
   | "teacher-submit";
+
+export type MembershipStatus = "STAYING" | "VISITING";
+
+/** Raw form state for the New Cell Member page (everything is a string until validated). */
+export interface NewMemberForm {
+  fullName: string;
+  dateOfBirth: string;
+  phone: string;
+  email: string;
+  hallHostel: string;
+  homeLocation: string;
+  membershipStatus: MembershipStatus | "";
+}
 
 export type HistoryTab = "sunday" | "saturday";
