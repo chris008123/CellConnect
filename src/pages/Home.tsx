@@ -23,7 +23,7 @@ export default function Home({ onNavigate }: Props) {
   return (
     <div className="flex flex-col min-h-full">
       {/* Header banner */}
-      <header className="bg-forest text-white px-5 pt-8 pb-6">
+      <header className="bg-forest text-white px-5 pt-8 pb-6 rounded-b-3xl">
         <div className="max-w-lg mx-auto">
           <p className="text-forest-subtle text-sm font-semibold tracking-wide uppercase opacity-80">
             Cell Secretary
