@@ -5,11 +5,28 @@ export const MEMBERSHIP_STATUSES: { value: MembershipStatus; label: string }[] =
   { value: "VISITING", label: "Visiting" },
 ];
 
+export const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function isLeapYear(y: number): boolean {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+}
+
+/** Days in a month. With no year, February allows the 29th. */
+export function daysInMonth(month: number, year: number | null): number {
+  if (month === 2) return year === null || isLeapYear(year) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
 export type MemberFormErrors = Partial<Record<keyof NewMemberForm, string>>;
 
 export interface CleanMember {
   fullName: string;
-  dateOfBirth: string;
+  birthDay: number;
+  birthMonth: number;
+  birthYear: number | null;
   phone: string;
   email: string | null;
   hallHostel: string;
@@ -93,14 +110,35 @@ export function validateMemberForm(
   if (!fullName) errors.fullName = "Please enter the member's full name.";
   else if (fullName.length > 120) errors.fullName = "Name is too long (max 120 characters).";
 
-  if (!form.dateOfBirth) {
-    errors.dateOfBirth = "Please select a date of birth.";
-  } else if (!isRealISODate(form.dateOfBirth)) {
-    errors.dateOfBirth = "That isn't a valid date.";
-  } else if (form.dateOfBirth > localTodayISO(now)) {
-    errors.dateOfBirth = "Date of birth can't be in the future.";
-  } else if (form.dateOfBirth < "1900-01-01") {
-    errors.dateOfBirth = "Please check the year — that date looks too old.";
+  // Date of birth: day and month are required, the year is optional.
+  const day = parseInt(form.birthDay, 10);
+  const month = parseInt(form.birthMonth, 10);
+  const yearRaw = form.birthYear.trim();
+  let year: number | null = null;
+
+  if (!(day >= 1 && day <= 31) || !(month >= 1 && month <= 12)) {
+    const msg = "Please select the day and month you were born. (The year is optional.)";
+    if (!(day >= 1 && day <= 31)) errors.birthDay = msg;
+    if (!(month >= 1 && month <= 12)) errors.birthMonth = msg;
+  }
+  if (yearRaw) {
+    if (!/^\d{4}$/.test(yearRaw)) {
+      errors.birthYear = "Enter a 4-digit year (for example 2004), or leave it blank.";
+    } else {
+      year = Number(yearRaw);
+    }
+  }
+  if (!errors.birthDay && !errors.birthMonth) {
+    if (day > daysInMonth(month, year)) {
+      errors.birthDay =
+        year === null
+          ? "That day doesn't exist in the month you chose."
+          : "That date doesn't exist. Please check the day, month and year.";
+    } else if (year !== null) {
+      const iso = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      if (year < 1900) errors.birthYear = "Please check the year — that looks too old.";
+      else if (iso > localTodayISO(now)) errors.birthYear = "Date of birth can't be in the future.";
+    }
   }
 
   const phone = normalizePhone(form.phone);
@@ -135,7 +173,9 @@ export function validateMemberForm(
     errors,
     clean: {
       fullName,
-      dateOfBirth: form.dateOfBirth,
+      birthDay: day,
+      birthMonth: month,
+      birthYear: year,
       phone,
       email,
       hallHostel,

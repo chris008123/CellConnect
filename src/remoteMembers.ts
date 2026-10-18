@@ -44,7 +44,9 @@ export async function registerMemberRemote(
   const { data, error } = await supabase.rpc("register_cell_member", {
     p_id: requestId,
     p_full_name: member.fullName,
-    p_date_of_birth: member.dateOfBirth,
+    p_birth_day: member.birthDay,
+    p_birth_month: member.birthMonth,
+    p_birth_year: member.birthYear,
     p_phone: member.phone,
     p_email: member.email,
     p_hall_hostel: member.hallHostel,

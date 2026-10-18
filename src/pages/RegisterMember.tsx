@@ -1,11 +1,10 @@
 import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { NewMemberForm } from "../types";
-import { formatDisplayDate } from "../storage";
 import { newRequestId, registerMemberRemote } from "../remoteMembers";
 import {
   MEMBERSHIP_STATUSES,
-  localTodayISO,
+  MONTH_NAMES,
   validateMemberForm,
   type CleanMember,
   type MemberFormErrors,
@@ -16,7 +15,9 @@ import ConfirmDialog from "../components/ConfirmDialog";
 
 const EMPTY_FORM: NewMemberForm = {
   fullName: "",
-  dateOfBirth: "",
+  birthDay: "",
+  birthMonth: "",
+  birthYear: "",
   phone: "",
   email: "",
   hallHostel: "",
@@ -106,6 +107,8 @@ export default function RegisterMember({ publicMode = false }: Props) {
       requestId.current = newRequestId();
     }
   }
+
+  const dobError = errors.birthDay || errors.birthMonth || errors.birthYear;
 
   const isDirty = Object.values(form).some((v) => v !== "");
 
@@ -243,24 +246,79 @@ export default function RegisterMember({ publicMode = false }: Props) {
                 className={inputCls(!!errors.fullName)}
               />
             </Field>
-            <Field
-              id="member-dateOfBirth"
-              label="Date of Birth"
-              required
-              error={errors.dateOfBirth}
-              hint={form.dateOfBirth ? formatDisplayDate(form.dateOfBirth) : undefined}
-            >
-              <input
-                id="member-dateOfBirth"
-                type="date"
-                max={localTodayISO()}
-                value={form.dateOfBirth}
-                onChange={(e) => setField("dateOfBirth", e.target.value)}
-                aria-invalid={!!errors.dateOfBirth}
-                aria-describedby={errors.dateOfBirth ? "member-dateOfBirth-error" : undefined}
-                className={inputCls(!!errors.dateOfBirth)}
-              />
-            </Field>
+            <div className={rowCls}>
+              <fieldset
+                aria-describedby={dobError ? "member-birth-error" : "member-birth-hint"}
+              >
+                <legend className={labelCls}>
+                  Date of Birth
+                  <span className="text-danger" aria-hidden>
+                    {" "}
+                    *
+                  </span>
+                </legend>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    id="member-birthDay"
+                    aria-label="Day of birth"
+                    value={form.birthDay}
+                    onChange={(e) => setField("birthDay", e.target.value)}
+                    aria-invalid={!!errors.birthDay}
+                    className={inputCls(!!errors.birthDay)}
+                  >
+                    <option value="">Day</option>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={String(d)}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    id="member-birthMonth"
+                    aria-label="Month of birth"
+                    value={form.birthMonth}
+                    onChange={(e) => setField("birthMonth", e.target.value)}
+                    aria-invalid={!!errors.birthMonth}
+                    className={inputCls(!!errors.birthMonth)}
+                  >
+                    <option value="">Month</option>
+                    {MONTH_NAMES.map((name, i) => (
+                      <option key={name} value={String(i + 1)}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <input
+                  id="member-birthYear"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={4}
+                  value={form.birthYear}
+                  onChange={(e) =>
+                    setField("birthYear", e.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
+                  aria-label="Year of birth (optional)"
+                  aria-invalid={!!errors.birthYear}
+                  placeholder="Year (optional), e.g. 2004"
+                  className={`${inputCls(!!errors.birthYear)} mt-2`}
+                />
+                {dobError ? (
+                  <p
+                    id="member-birth-error"
+                    role="alert"
+                    className="text-xs text-danger font-semibold mt-1"
+                  >
+                    {dobError}
+                  </p>
+                ) : (
+                  <p id="member-birth-hint" className="text-xs text-bark-muted mt-1">
+                    Day and month are required. The year is optional.
+                  </p>
+                )}
+              </fieldset>
+            </div>
           </section>
 
           {/* 2. Contact and location */}

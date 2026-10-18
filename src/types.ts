@@ -65,7 +65,9 @@ export type MembershipStatus = "STAYING" | "VISITING";
 /** Raw form state for the New Cell Member page (everything is a string until validated). */
 export interface NewMemberForm {
   fullName: string;
-  dateOfBirth: string;
+  birthDay: string;   // "1"-"31" (required)
+  birthMonth: string; // "1"-"12" (required)
+  birthYear: string;  // 4 digits, optional
   phone: string;
   email: string;
   hallHostel: string;
