@@ -20,7 +20,6 @@ export function newRequestId(): string {
 export type RegisterResult =
   | { status: "created"; id: string }
   | { status: "duplicate" }
-  | { status: "unauthorized" }
   | { status: "invalid"; field?: keyof MemberFormErrors; message: string };
 
 interface RpcResponse {
@@ -33,13 +32,13 @@ interface RpcResponse {
 /**
  * Registers a member through the register_cell_member() database function
  * (see supabase/migrations/20261018000000_cell_members.sql). The function
- * re-validates everything, checks the shared PIN and flags duplicate phones.
+ * re-validates everything and flags duplicate phones. No PIN is needed: new
+ * members register themselves from the shared "?register" link.
  * Throws on network/server failure so the caller can keep the form intact.
  */
 export async function registerMemberRemote(
   requestId: string,
   member: CleanMember,
-  pin: string,
   allowDuplicate: boolean
 ): Promise<RegisterResult> {
   const { data, error } = await supabase.rpc("register_cell_member", {
@@ -51,7 +50,6 @@ export async function registerMemberRemote(
     p_hall_hostel: member.hallHostel,
     p_home_location: member.homeLocation,
     p_membership_status: member.membershipStatus,
-    p_pin: pin,
     p_allow_duplicate: allowDuplicate,
   });
 
@@ -63,8 +61,6 @@ export async function registerMemberRemote(
       return { status: "created", id: res.id ?? requestId };
     case "duplicate":
       return { status: "duplicate" };
-    case "unauthorized":
-      return { status: "unauthorized" };
     case "invalid":
       return {
         status: "invalid",

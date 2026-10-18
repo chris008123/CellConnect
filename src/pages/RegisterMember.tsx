@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { NewMemberForm } from "../types";
 import { formatDisplayDate } from "../storage";
-import { fetchSettingsPin } from "../remoteConfig";
 import { newRequestId, registerMemberRemote } from "../remoteMembers";
 import {
   MEMBERSHIP_STATUSES,
@@ -24,8 +23,6 @@ const EMPTY_FORM: NewMemberForm = {
   homeLocation: "",
   membershipStatus: "",
 };
-
-type AccessStatus = "checking" | "error" | "locked" | "ready";
 
 const sectionCls = "mb-5 bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden";
 const sectionHeaderCls =
@@ -78,13 +75,12 @@ function Field({
   );
 }
 
-export default function RegisterMember() {
-  // ── Access (reuses the shared Settings PIN, same as the Settings page) ──────
-  const [access, setAccess] = useState<AccessStatus>("checking");
-  const [pin, setPin] = useState(""); // held in memory only, sent to the server with each submission
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
+interface Props {
+  /** True on the shared "?register" link that new members fill in themselves. */
+  publicMode?: boolean;
+}
 
+export default function RegisterMember({ publicMode = false }: Props) {
   // ── Form ────────────────────────────────────────────────────────────────────
   const [form, setForm] = useState<NewMemberForm>(EMPTY_FORM);
   const [errors, setErrors] = useState<MemberFormErrors>({});
@@ -98,30 +94,6 @@ export default function RegisterMember() {
   // is recognised by the server and can't create a second record.
   const requestId = useRef(newRequestId());
   const inFlight = useRef(false);
-
-  useEffect(() => {
-    loadAccess();
-  }, []);
-
-  async function loadAccess() {
-    setAccess("checking");
-    try {
-      const remotePin = await fetchSettingsPin();
-      setAccess(remotePin.trim() ? "locked" : "ready");
-    } catch (err) {
-      console.error(err);
-      setAccess("error");
-    }
-  }
-
-  function handleUnlock() {
-    if (!pinInput.trim()) return;
-    // The server is the real gate; this just holds the PIN for submissions.
-    setPin(pinInput.trim());
-    setPinInput("");
-    setPinError("");
-    setAccess("ready");
-  }
 
   function setField<K extends keyof NewMemberForm>(key: K, value: NewMemberForm[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -162,7 +134,7 @@ export default function RegisterMember() {
     setSaving(true);
     setSubmitError("");
     try {
-      const result = await registerMemberRemote(requestId.current, clean, pin, allowDuplicate);
+      const result = await registerMemberRemote(requestId.current, clean, allowDuplicate);
       switch (result.status) {
         case "created":
           setSuccessName(clean.fullName);
@@ -172,11 +144,6 @@ export default function RegisterMember() {
         case "duplicate":
           setDuplicate(clean);
           break;
-        case "unauthorized":
-          setPin("");
-          setPinError("Incorrect PIN. Enter the settings PIN to continue.");
-          setAccess("locked");
-          break;
         case "invalid":
           if (result.field) setErrors({ [result.field]: result.message });
           else setSubmitError(result.message);
@@ -185,7 +152,7 @@ export default function RegisterMember() {
     } catch (err) {
       console.error(err);
       setSubmitError(
-        "Couldn't save the member. Check your connection and try again — your details are still here."
+        "Couldn't save your details. Check your connection and try again — what you typed is still here."
       );
     } finally {
       inFlight.current = false;
@@ -198,89 +165,28 @@ export default function RegisterMember() {
     submit(false);
   }
 
-  // ── Gate screens ────────────────────────────────────────────────────────────
-  if (access === "checking") {
-    return (
-      <div className="flex flex-col min-h-full">
-        <PageHeader title="New Cell Member" />
-        <main className="flex-1 px-4 pt-10 pb-24 max-w-lg mx-auto w-full flex flex-col items-center">
-          <div className="text-3xl mb-3">⏳</div>
-          <p className="text-sm text-bark-muted">Checking access…</p>
-        </main>
-      </div>
-    );
-  }
-
-  if (access === "error") {
-    return (
-      <div className="flex flex-col min-h-full">
-        <PageHeader title="New Cell Member" />
-        <main className="flex-1 px-4 pt-10 pb-24 max-w-lg mx-auto w-full flex flex-col items-center">
-          <div className="text-4xl mb-4">⚠️</div>
-          <p className="text-sm text-bark-light text-center mb-5">
-            Couldn't check access. Check your connection and try again.
-          </p>
-          <button
-            onClick={loadAccess}
-            className="w-full py-3 bg-forest text-white font-bold text-sm rounded-xl active:scale-95 transition-all"
-          >
-            Retry
-          </button>
-        </main>
-      </div>
-    );
-  }
-
-  if (access === "locked") {
-    return (
-      <div className="flex flex-col min-h-full">
-        <PageHeader title="New Cell Member" subtitle="Enter PIN to continue" />
-        <main className="flex-1 px-4 pt-10 pb-24 max-w-lg mx-auto w-full flex flex-col items-center">
-          <div className="text-4xl mb-4">🔒</div>
-          <p className="text-sm text-bark-light text-center mb-5">
-            Registering members is restricted. Enter the settings PIN to continue.
-          </p>
-          <input
-            type="password"
-            inputMode="numeric"
-            value={pinInput}
-            onChange={(e) => {
-              setPinInput(e.target.value);
-              setPinError("");
-            }}
-            onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
-            placeholder="Enter PIN"
-            aria-label="Settings PIN"
-            autoFocus
-            className="w-full border-2 border-cream-200 rounded-xl px-4 py-3 text-bark text-base font-semibold text-center tracking-widest focus:border-forest focus:outline-none bg-white mb-3"
-          />
-          {pinError && <p className="text-xs text-danger mb-3">{pinError}</p>}
-          <button
-            onClick={handleUnlock}
-            disabled={!pinInput.trim()}
-            className="w-full py-4 bg-forest text-white font-bold text-base rounded-2xl shadow active:scale-95 transition-all disabled:opacity-40"
-          >
-            Continue
-          </button>
-        </main>
-      </div>
-    );
-  }
-
-  // ── Form ────────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-h-full">
-      <PageHeader title="New Cell Member" />
+      <PageHeader
+        title="New Cell Member"
+        subtitle={publicMode ? "Welcome!" : undefined}
+      />
 
       <main className="flex-1 px-4 pt-5 pb-28 max-w-lg mx-auto w-full">
         <p className="text-sm text-bark-light mb-4">
-          Register a new member of your church cell by completing the form below.
+          {publicMode
+            ? "Welcome! Please fill in your details below."
+            : "Register a new member of your church cell by completing the form below."}
         </p>
 
         {successName && (
           <StatusBanner
             variant="success"
-            message={`✓ ${successName} has been registered.`}
+            message={
+              publicMode
+                ? `✓ Thank you, ${successName}! You're registered.`
+                : `✓ ${successName} has been registered.`
+            }
             className="mb-4"
           />
         )}
@@ -296,8 +202,9 @@ export default function RegisterMember() {
             className="mb-4"
           >
             <p className="text-xs mb-3">
-              This could be the same person. Nothing has been changed or overwritten. Check the
-              number, or register {duplicate.fullName} anyway if this is a different person.
+              {publicMode
+                ? "If this is you, you're already registered. If someone else shares this number, you can register anyway."
+                : `This could be the same person. Nothing has been changed or overwritten. Check the number, or register ${duplicate.fullName} anyway if this is a different person.`}
             </p>
             <div className="flex gap-2">
               <button
@@ -487,7 +394,7 @@ export default function RegisterMember() {
             aria-busy={saving}
             className="w-full py-4 bg-forest text-white font-bold text-base rounded-2xl shadow-md active:scale-95 transition-all disabled:opacity-60 mb-3"
           >
-            {saving ? "Registering…" : "Register Member"}
+            {saving ? "Registering…" : publicMode ? "Submit" : "Register Member"}
           </button>
           <button
             type="button"

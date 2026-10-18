@@ -9,12 +9,29 @@ import History from "./pages/History";
 import Settings from "./pages/Settings";
 import RegisterMember from "./pages/RegisterMember";
 
-seedSampleDataIfNeeded();
+// The shared "?register" link shows only the new-member form (no other pages).
+const REGISTER_ONLY = new URLSearchParams(window.location.search).has("register");
+
+if (!REGISTER_ONLY) seedSampleDataIfNeeded();
 
 // Pages that show the bottom nav
 const NAV_PAGES: Page[] = ["home", "sunday", "saturday", "register", "history", "settings"];
 
 export default function App() {
+  return REGISTER_ONLY ? <RegisterOnlyApp /> : <MainApp />;
+}
+
+function RegisterOnlyApp() {
+  return (
+    <div className="relative min-h-screen bg-cream font-body">
+      <div className="max-w-lg mx-auto min-h-screen flex flex-col">
+        <RegisterMember publicMode />
+      </div>
+    </div>
+  );
+}
+
+function MainApp() {
   const [page, setPage] = useState<Page>("home");
   const [editSaturday, setEditSaturday] = useState<SaturdayRecord | undefined>();
   const [refreshKey, setRefreshKey] = useState(0);
